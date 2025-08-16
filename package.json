@@ -1,0 +1,24 @@
+{
+  "name": "bilibili-discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot that sends notifications when Bilibili streamers go live",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": ["discord", "bot", "bilibili", "live", "notification"],
+  "author": "白开水",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
