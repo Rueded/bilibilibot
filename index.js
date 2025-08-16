@@ -14,6 +14,10 @@ const config = {
         {
             uid: process.env.BILIBILI_UID_2,
             name: process.env.BILIBILI_NAME_2 || 'UP主2'
+        },
+        {
+            uid: process.env.BILIBILI_UID_3,
+            name: process.env.BILIBILI_NAME_3 || 'UP主3'
         }
         // 在环境变量中添加更多UP主: BILIBILI_UID_3, BILIBILI_NAME_3 等
     ].filter(user => user.uid), // 过滤掉未设置的UP主
@@ -108,17 +112,52 @@ async function sendLiveNotification(userInfo, liveData) {
     }
 }
 
+// 发送测试通知的函数
+async function sendTestNotification() {
+    try {
+        const channel = client.channels.cache.get(config.channelId);
+        if (!channel) {
+            console.error('❌ 找不到指定的频道，请检查CHANNEL_ID是否正确');
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('🤖 测试通知')
+            .setDescription('机器人运行正常！这是一条测试消息。')
+            .setColor(0x00FF00)
+            .setTimestamp()
+            .setFooter({ text: '机器人测试' });
+
+        await channel.send({ 
+            content: `✅ 机器人测试成功！正在监控 ${config.bilibiliUsers.length} 位UP主`,
+            embeds: [embed] 
+        });
+        
+        console.log(`✅ 测试通知发送成功`);
+    } catch (error) {
+        console.error('❌ 发送测试通知时出错:', error);
+    }
+}
+
 // 开始定时检查直播状态
 function startLiveCheck() {
+    // 启动后5秒发送测试通知
+    setTimeout(() => {
+        sendTestNotification();
+    }, 5000);
+
     setInterval(async () => {
         console.log('🔍 检查直播状态中...');
         
         for (const user of config.bilibiliUsers) {
+            console.log(`🔎 检查 ${user.name} (UID: ${user.uid}) 的直播状态...`);
             const liveData = await checkBilibiliLive(user.uid);
             
             if (liveData) {
                 const wasLive = liveStatus.get(user.uid);
                 const isNowLive = liveData.isLive;
+                
+                console.log(`📊 ${user.name} 当前状态: ${isNowLive ? '🔴直播中' : '⚫未开播'} (之前: ${wasLive ? '直播中' : '未开播'})`);
                 
                 // 如果之前未开播，现在开播了，则发送通知
                 if (!wasLive && isNowLive) {
@@ -130,11 +169,15 @@ function startLiveCheck() {
                     console.log(`📺 ${user.name} 已停播`);
                     liveStatus.set(user.uid, false);
                 }
+            } else {
+                console.log(`⚠️ 无法获取 ${user.name} 的直播信息`);
             }
             
             // 每个UP主之间间隔一点时间，避免请求太频繁
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        
+        console.log('✅ 本轮检查完成\n');
     }, config.checkInterval);
 }
 
