@@ -60,6 +60,31 @@ const config = {
             uid: process.env.BILIBILI_UID_5,
             name: process.env.BILIBILI_NAME_5 || 'UP主5',
             isRoomId: process.env.BILIBILI_UID_5_IS_ROOM === 'true' // 标记是否为直播间ID
+        },
+        {
+            uid: process.env.BILIBILI_UID_6,
+            name: process.env.BILIBILI_NAME_6 || 'UP主6',
+            isRoomId: process.env.BILIBILI_UID_6_IS_ROOM === 'true' // 标记是否为直播间ID
+        },
+        {
+            uid: process.env.BILIBILI_UID_7,
+            name: process.env.BILIBILI_NAME_7 || 'UP主7',
+            isRoomId: process.env.BILIBILI_UID_7_IS_ROOM === 'true' // 标记是否为直播间ID
+        },
+        {
+            uid: process.env.BILIBILI_UID_8,
+            name: process.env.BILIBILI_NAME_8 || 'UP主8',
+            isRoomId: process.env.BILIBILI_UID_8_IS_ROOM === 'true' // 标记是否为直播间ID
+        },
+        {
+            uid: process.env.BILIBILI_UID_9,
+            name: process.env.BILIBILI_NAME_9 || 'UP主9',
+            isRoomId: process.env.BILIBILI_UID_9_IS_ROOM === 'true' // 标记是否为直播间ID
+        },
+        {
+            uid: process.env.BILIBILI_UID_10,
+            name: process.env.BILIBILI_NAME_10 || 'UP主10',
+            isRoomId: process.env.BILIBILI_UID_10_IS_ROOM === 'true' // 标记是否为直播间ID
         }
         // 在环境变量中添加更多UP主: BILIBILI_UID_3, BILIBILI_NAME_3 等
     ].filter(user => user.uid), // 过滤掉未设置的UP主
