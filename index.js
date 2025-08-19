@@ -18,17 +18,22 @@ server.listen(PORT, () => {
 // 自我ping防止休眠（每14分钟）
 const keepAlive = () => {
     const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-    setInterval(() => {
-        axios.get(url).catch(() => {
-            // 忽略错误，只是为了保持活跃
-        });
-        console.log('💓 发送心跳请求，保持服务活跃');
+    console.log(`🔗 设置心跳URL: ${url}`);
+    
+    setInterval(async () => {
+        try {
+            await axios.get(url, { timeout: 5000 });
+            console.log('💓 心跳请求成功，服务保持活跃');
+        } catch (error) {
+            console.log('⚠️ 心跳请求失败，但这是正常的:', error.message);
+        }
     }, 14 * 60 * 1000); // 14分钟
 };
 
 // 启动保持活跃功能
 if (process.env.NODE_ENV === 'production' || process.env.RENDER_EXTERNAL_URL) {
     keepAlive();
+    console.log('🔄 已启用防休眠心跳功能');
 }
 
 // 配置信息 - 使用环境变量保护敏感信息
@@ -354,13 +359,52 @@ function startLiveCheck() {
     }, config.checkInterval);
 }
 
-// 错误处理
+// 错误处理和自动重连
 client.on('error', error => {
     console.error('❌ Discord客户端错误:', error);
+    console.log('🔄 尝试重新连接...');
+    
+    // 延迟重连，避免频繁重试
+    setTimeout(() => {
+        client.login(config.token).catch(loginError => {
+            console.error('❌ 重新登录失败:', loginError);
+        });
+    }, 5000);
 });
 
-process.on('unhandledRejection', error => {
+client.on('shardError', error => {
+    console.error('❌ Shard错误:', error);
+});
+
+// 进程异常处理
+process.on('unhandledRejection', (error, promise) => {
     console.error('❌ 未处理的Promise拒绝:', error);
+    console.error('Promise:', promise);
+    // 不退出进程，继续运行
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ 未捕获的异常:', error);
+    // 记录错误但不退出，让进程管理器处理
+});
+
+// 优雅关闭
+process.on('SIGTERM', () => {
+    console.log('📴 收到SIGTERM信号，正在优雅关闭...');
+    client.destroy();
+    server.close(() => {
+        console.log('✅ 服务已关闭');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('📴 收到SIGINT信号，正在优雅关闭...');
+    client.destroy();
+    server.close(() => {
+        console.log('✅ 服务已关闭');
+        process.exit(0);
+    });
 });
 
 // 启动机器人
