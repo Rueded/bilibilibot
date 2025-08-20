@@ -5,8 +5,53 @@ const http = require('http');
 
 // 创建简单的HTTP服务器防止休眠
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bilibili Discord Bot is running!');
+    const now = new Date().toISOString();
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    
+    // 记录访问
+    console.log(`🌐 收到HTTP请求: ${req.url} - ${now}`);
+    
+    res.writeHead(200, { 
+        'Content-Type': 'text/html; charset=utf-8',
+        'Access-Control-Allow-Origin': '*' 
+    });
+    
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>B站开播通知机器人</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .status { color: #28a745; font-weight: bold; }
+            .info { margin: 10px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🤖 B站开播通知Discord机器人</h1>
+            <div class="info">状态: <span class="status">运行中</span></div>
+            <div class="info">启动时间: ${new Date(Date.now() - uptime * 1000).toLocaleString('zh-CN')}</div>
+            <div class="info">运行时长: ${hours}小时 ${minutes}分钟</div>
+            <div class="info">当前时间: ${new Date().toLocaleString('zh-CN')}</div>
+            <div class="info">监控UP主数量: ${config.bilibiliUsers.length}</div>
+            <div class="info">Discord连接: ${client.readyAt ? '正常' : '异常'}</div>
+            <p>机器人正在正常运行，监控B站UP主的直播状态并发送Discord通知。</p>
+        </div>
+        <script>
+            // 每30秒自动刷新页面状态
+            setTimeout(() => location.reload(), 30000);
+        </script>
+    </body>
+    </html>
+    `;
+    
+    res.end(html);
 });
 
 // 启动HTTP服务器
@@ -17,24 +62,46 @@ server.listen(PORT, () => {
 
 // 自我ping防止休眠（每14分钟）
 const keepAlive = () => {
-    const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-    console.log(`🔗 设置心跳URL: ${url}`);
+    // 尝试多种方式获取URL
+    let url = process.env.RENDER_EXTERNAL_URL;
     
-    setInterval(async () => {
+    if (!url) {
+        // 如果没有设置环境变量，尝试从Render自动生成
+        const serviceName = process.env.RENDER_SERVICE_NAME || 'bilibilibot';
+        url = `https://${serviceName}.onrender.com`;
+    }
+    
+    console.log(`🔗 设置心跳URL: ${url}`);
+    console.log(`📋 环境检查 - NODE_ENV: ${process.env.NODE_ENV}, RENDER_EXTERNAL_URL: ${process.env.RENDER_EXTERNAL_URL || '未设置'}`);
+    
+    // 立即发送第一次心跳测试
+    axios.get(url, { timeout: 10000 })
+        .then(() => console.log('✅ 初始心跳测试成功'))
+        .catch(error => console.log(`⚠️ 初始心跳测试失败: ${error.message}`));
+    
+    // 设置定期心跳
+    const heartbeatInterval = setInterval(async () => {
         try {
-            await axios.get(url, { timeout: 5000 });
-            console.log('💓 心跳请求成功，服务保持活跃');
+            console.log(`💓 发送心跳请求到: ${url}`);
+            const response = await axios.get(url, { 
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'BilibiliBot-KeepAlive/1.0'
+                }
+            });
+            console.log(`✅ 心跳成功 - 状态码: ${response.status}, 时间: ${new Date().toISOString()}`);
         } catch (error) {
-            console.log('⚠️ 心跳请求失败，但这是正常的:', error.message);
+            console.log(`⚠️ 心跳失败: ${error.message}, 时间: ${new Date().toISOString()}`);
+            // 心跳失败不影响程序运行
         }
     }, 14 * 60 * 1000); // 14分钟
+    
+    console.log('🔄 防休眠心跳已启用，间隔14分钟');
+    return heartbeatInterval;
 };
 
-// 启动保持活跃功能
-if (process.env.NODE_ENV === 'production' || process.env.RENDER_EXTERNAL_URL) {
-    keepAlive();
-    console.log('🔄 已启用防休眠心跳功能');
-}
+// 总是启用心跳功能（不管是生产环境还是开发环境）
+const heartbeatInterval = keepAlive();
 
 // 配置信息 - 使用环境变量保护敏感信息
 const config = {
@@ -356,6 +423,14 @@ function startLiveCheck() {
         }
         
         console.log('✅ 本轮检查完成\n');
+        
+        // 在每次检查后也发送一次心跳（双重保险）
+        if (Math.random() < 0.3) { // 30%概率发送额外心跳
+            const url = process.env.RENDER_EXTERNAL_URL || `https://bilibilibot.onrender.com`;
+            axios.get(url, { timeout: 5000 })
+                .then(() => console.log('💓 额外心跳发送成功'))
+                .catch(() => {}); // 忽略错误
+        }
     }, config.checkInterval);
 }
 
