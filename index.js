@@ -61,47 +61,87 @@ server.listen(PORT, () => {
 });
 
 // 自我ping防止休眠（每14分钟）
-const keepAlive = () => {
-    // 尝试多种方式获取URL
+// 修复的 URL 获取逻辑
+const getServerUrl = () => {
+    // Render 会自动设置这个环境变量
     let url = process.env.RENDER_EXTERNAL_URL;
     
     if (!url) {
-        // 如果没有设置环境变量，尝试从Render自动生成
-        const serviceName = process.env.RENDER_SERVICE_NAME || 'bilibilibot';
-        url = `https://${serviceName}.onrender.com`;
+        // 如果没有设置，尝试从其他环境变量获取
+        const serviceName = process.env.RENDER_SERVICE_NAME;
+        if (serviceName) {
+            url = `https://${serviceName}.onrender.com`;
+        } else {
+            // 最后的备选方案，使用默认名称
+            url = `https://bilibilibot.onrender.com`;
+        }
     }
     
-    console.log(`🔗 设置心跳URL: ${url}`);
-    console.log(`📋 环境检查 - NODE_ENV: ${process.env.NODE_ENV}, RENDER_EXTERNAL_URL: ${process.env.RENDER_EXTERNAL_URL || '未设置'}`);
+    // 确保 URL 格式正确
+    if (!url.startsWith('http')) {
+        url = `https://${url}`;
+    }
     
-    // 立即发送第一次心跳测试
-    axios.get(url, { timeout: 10000 })
-        .then(() => console.log('✅ 初始心跳测试成功'))
-        .catch(error => console.log(`⚠️ 初始心跳测试失败: ${error.message}`));
-    
-    // 设置定期心跳
-    const heartbeatInterval = setInterval(async () => {
-        try {
-            console.log(`💓 发送心跳请求到: ${url}`);
-            const response = await axios.get(url, { 
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'BilibiliBot-KeepAlive/1.0'
-                }
-            });
-            console.log(`✅ 心跳成功 - 状态码: ${response.status}, 时间: ${new Date().toISOString()}`);
-        } catch (error) {
-            console.log(`⚠️ 心跳失败: ${error.message}, 时间: ${new Date().toISOString()}`);
-            // 心跳失败不影响程序运行
-        }
-    }, 14 * 60 * 1000); // 14分钟
-    
-    console.log('🔄 防休眠心跳已启用，间隔14分钟');
-    return heartbeatInterval;
+    console.log(`🔗 检测到服务器URL: ${url}`);
+    return url;
 };
 
-// 总是启用心跳功能（不管是生产环境还是开发环境）
-const heartbeatInterval = keepAlive();
+// 改进的心跳函数
+const improvedKeepAlive = () => {
+    const url = getServerUrl();
+    
+    const pingServer = async () => {
+        try {
+            console.log(`💓 发送心跳到: ${url}`);
+            const response = await axios.get(url, {
+                timeout: 60000, // 60秒超时
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                },
+                // 跟随重定向
+                maxRedirects: 3
+            });
+            
+            console.log(`✅ 心跳成功 - 状态: ${response.status}, 时间: ${new Date().toLocaleString('zh-CN')}`);
+            return true;
+        } catch (error) {
+            console.log(`❌ 心跳失败: ${error.message}`);
+            
+            // 如果失败，尝试简单的 HEAD 请求
+            try {
+                await axios.head(url, { timeout: 30000 });
+                console.log(`✅ HEAD请求成功作为备选`);
+                return true;
+            } catch (headError) {
+                console.log(`❌ HEAD请求也失败: ${headError.message}`);
+                return false;
+            }
+        }
+    };
+    
+    // 立即执行一次
+    setTimeout(pingServer, 3000);
+    
+    // 设置主要心跳 - 每10分钟
+    const mainInterval = setInterval(pingServer, 10 * 60 * 1000);
+    
+    // 设置备用心跳 - 每13分钟
+    const backupInterval = setInterval(async () => {
+        console.log(`🔄 备用心跳检查...`);
+        await pingServer();
+    }, 13 * 60 * 1000);
+    
+    console.log('💝 改进的心跳功能已启动 (10分钟主心跳 + 13分钟备用心跳)');
+    
+    return { mainInterval, backupInterval };
+};
+
+// 替换原来的 keepAlive() 调用
+const heartbeatInterval = improvedKeepAlive();
 
 // 配置信息 - 使用环境变量保护敏感信息
 const config = {
